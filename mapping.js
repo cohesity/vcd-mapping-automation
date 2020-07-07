@@ -2,7 +2,7 @@ const program = require('commander');
 const utility = require('./utility');
 
 program
-    .version('2.0.0')
+    .version('2.0.1')
     .requiredOption('-h, --href <href>', 'vcd endpoint href')
     .requiredOption('-u, --vcd-username <vcdUsername>', 'vcd provider username')
     .requiredOption('-p, --vcd-password <vcdPassword>', 'vcd provider password')
