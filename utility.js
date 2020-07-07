@@ -165,6 +165,7 @@ module.exports = {
                     id: hrefParts[hrefParts.length - 1]
                 })
             }
+
             return orgMap;
         } catch (e) {
             console.error("failed to fetch all org ids...");

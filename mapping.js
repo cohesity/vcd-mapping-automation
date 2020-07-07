@@ -25,6 +25,32 @@ if (program.action === 'add') {
 }
 
 async function validateAndUpdateMappings() {
+    const timeout = ms => new Promise(resolve => setTimeout(resolve, ms));
+    /**
+     * Await for the metadata to be updated successfully.
+     */
+    const awaitMetaUpdate = async function (attemptCount = 5) {
+        if (attemptCount == 0) {
+            throw new Error('Failed to update metadata. Maximum attempts reached.');
+        }
+
+        let uEpData = await utility.fetchEndpointData(token, program.href, systemOrgId, program.endpointName, sysOrgKEK);
+        let uMappedTenants = uEpData.mappedTenants.map(mData => mData.vcdTenantName);
+        if (program.action === 'add') {
+            if (uMappedTenants.indexOf(program.vcdTenant) !== -1) { // new tenant has been added
+                return true;
+            }
+        } else {
+            if (uMappedTenants.indexOf(program.vcdTenant) === -1) { // vcd tenant removed
+                return true;
+            }
+        }
+
+        console.log('Metadata not updated yet. Awaiting update....');
+        await timeout(2000);
+        return await awaitMetaUpdate(attemptCount - 1);
+    }
+
     // VCD Token
     const token = await utility.fetchAuthToken(program.vcdUsername, program.vcdPassword, program.href);
 
@@ -56,9 +82,8 @@ async function validateAndUpdateMappings() {
         const cohesityTenants = await utility.getAllCohesityTenants(epData.ip, cohesityToken);
         const allCohesityTenantNames = cohesityTenants.map(ctData => ctData.name);
 
-
-        const csTenant = program.cohesityTenant
-        const vcdTenant = program.vcdTenant
+        const csTenant = program.cohesityTenant;
+        const vcdTenant = program.vcdTenant;
 
         // Ensure that the cohesity tenant exists.
         if (allCohesityTenantNames.indexOf(csTenant) === -1) {
@@ -123,6 +148,7 @@ async function validateAndUpdateMappings() {
             version: epData.version
         };
         await utility.updateTenantMetaInfo(program.href, token, tenantEndpointData, vcdOrgKEK, vcdOrgId);
+        console.log('Successfully added the mapping information to tenant context.')
     }
 
 
@@ -132,10 +158,12 @@ async function validateAndUpdateMappings() {
     if (program.action === 'remove') {
         const vcdTenant = program.vcdTenant
 
-        // Ensure that the vcd tenant is not already mapped.
+        // Ensure that the vcd tenant mapped to some cohesity tenant.
         if (epData.mappedTenants.filter(data => data.vcdTenantName === vcdTenant).length === 0) {
             throw new Error("NotAllowed. VCD Tenant specified is not mapped to any cohesity tenant.");
         }
+
+        console.log(`Removing vcdTenant ${vcdTenant} from the endpoint.`);
 
         // Remove the tenant mapping and update the metadata (SYSTEM)
         epData.mappedTenants = epData.mappedTenants.filter(data => data.vcdTenantName !== vcdTenant);
@@ -146,6 +174,7 @@ async function validateAndUpdateMappings() {
             sysOrgKEK,
             systemOrgId
         );
+        console.log(`System metadata updated. vCD tenant mapping removed.`);
 
 
         // Remove the metadata for the tenant
@@ -155,11 +184,18 @@ async function validateAndUpdateMappings() {
             allOrgs.filter(data => data.name === vcdTenant)[0].id,
             epData.name
         );
+        console.log(`Tenant endpoint deleted.`);
     }
+
+    // Await the metadata to be updated.
+    console.log(`Verifying if the metadata update is complete...`);
+    await awaitMetaUpdate();
 
     // Publish extension to all the newly added endpoints.
     const extensionId = await utility.fetchExtensionId(program.href, token);
     const mappedTenants = await utility.fetchAllMappedVcdTenants(token, program.href, systemOrgId, sysOrgKEK);
+    console.log('Newly mapped tenants', mappedTenants);
+
     if (extensionId) {
         // Unpublish the extension
         await utility.unpublishExtensionForAll(program.href, extensionId, token);
