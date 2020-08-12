@@ -2,7 +2,7 @@ const program = require('commander');
 const utility = require('./utility');
 
 program
-    .version('2.0.1')
+    .version('2.1.0')
     .requiredOption('-h, --href <href>', 'vcd endpoint href')
     .requiredOption('-u, --vcd-username <vcdUsername>', 'vcd provider username')
     .requiredOption('-p, --vcd-password <vcdPassword>', 'vcd provider password')
@@ -34,7 +34,7 @@ async function validateAndUpdateMappings() {
             throw new Error('Failed to update metadata. Maximum attempts reached.');
         }
 
-        let uEpData = await utility.fetchEndpointData(token, program.href, systemOrgId, program.endpointName, sysOrgKEK);
+        let uEpData = await utility.fetchEndpointData(token, program.href, systemOrgId, program.endpointName, sysOrgDEK);
         let uMappedTenants = uEpData.mappedTenants.map(mData => mData.vcdTenantName);
         if (program.action === 'add') {
             if (uMappedTenants.indexOf(program.vcdTenant) !== -1) { // new tenant has been added
@@ -61,8 +61,9 @@ async function validateAndUpdateMappings() {
 
     // From the System context fetch the endpoint data.
     const systemOrgId = allOrgs.filter(data => data.name.toLowerCase() === 'system')[0].id;
-    const sysOrgKEK = await utility.fetchOrgKEK(program.href, token, systemOrgId, program.encPassword);
-    const epData = await utility.fetchEndpointData(token, program.href, systemOrgId, program.endpointName, sysOrgKEK);
+    console.debug(`System org id is ${systemOrgId}`);
+    const sysOrgDEK = await utility.fetchOrgDEK(program.href, token, systemOrgId, program.encPassword);
+    const epData = await utility.fetchEndpointData(token, program.href, systemOrgId, program.endpointName, sysOrgDEK);
 
     if (!epData) {
         throw new Error("Endpoint data not found.");
@@ -122,7 +123,7 @@ async function validateAndUpdateMappings() {
             program.href,
             token,
             epData,
-            sysOrgKEK,
+            sysOrgDEK,
             systemOrgId
         );
         console.log('Successfully added the mapping information to System Meta context.');
@@ -132,13 +133,13 @@ async function validateAndUpdateMappings() {
         // From the System context fetch the endpoint data.
         console.log('Adding mapping to tenant metadata context.');
         const vcdOrgId = allOrgs.filter(data => data.name.toLowerCase() === vcdTenant.toLowerCase())[0].id;
-        let vcdOrgKEK = await utility.fetchOrgKEK(program.href, token, vcdOrgId, program.encPassword);
+        let vcdOrgDEK = await utility.fetchOrgDEK(program.href, token, vcdOrgId, program.encPassword);
 
-        if (!vcdOrgKEK) { // If the VCD org key is not defined, create a new org key.
+        if (!vcdOrgDEK) { // If the VCD org key is not defined, create a new org key.
             console.log('Generating new org KEK.');
-            vcdOrgKEK = utility.generateRandomKEK();
+            vcdOrgDEK = utility.generateRandomDEK();
             // Save the KEK in encrypted form.
-            await utility.setEncryptionKeyInMetaEndpoint(program.href, token, vcdOrgKEK, program.encPassword, vcdOrgId);
+            await utility.setEncryptionKeyInMetaEndpoint(program.href, token, vcdOrgDEK, `${vcdOrgId}@${program.encPassword}`, vcdOrgId);
         }
 
         const tenantEndpointData = {
@@ -147,8 +148,26 @@ async function validateAndUpdateMappings() {
             mappedTenants: mappedTenantData,
             version: epData.version
         };
-        await utility.updateTenantMetaInfo(program.href, token, tenantEndpointData, vcdOrgKEK, vcdOrgId);
+        await utility.updateTenantMetaInfo(program.href, token, tenantEndpointData, vcdOrgDEK, vcdOrgId);
         console.log('Successfully added the mapping information to tenant context.')
+
+
+        // Fetch the Settings metadata.
+        console.log('Updating the settings metadata in the tenant context...');
+        let settingsData;
+        try {
+            settingsData = await utility.fetchSettingsMetadata(program.href, token, systemOrgId, sysOrgDEK);
+        } catch (err) {
+            console.warn('Failed to fetch the settings metadata from system context', err);
+        }
+
+        if (settingsData) {
+            try {
+                await utility.saveSettingsMetadata(program.href, token, vcdOrgId, vcdOrgDEK, settingsData);
+            } catch (err) {
+                console.warn('Failed to update the settings metadata in tenant context.', err);
+            }
+        }
     }
 
 
@@ -171,7 +190,7 @@ async function validateAndUpdateMappings() {
             program.href,
             token,
             epData,
-            sysOrgKEK,
+            sysOrgDEK,
             systemOrgId
         );
         console.log(`System metadata updated. vCD tenant mapping removed.`);
@@ -193,7 +212,7 @@ async function validateAndUpdateMappings() {
 
     // Publish extension to all the newly added endpoints.
     const extensionId = await utility.fetchExtensionId(program.href, token);
-    const mappedTenants = await utility.fetchAllMappedVcdTenants(token, program.href, systemOrgId, sysOrgKEK);
+    const mappedTenants = await utility.fetchAllMappedVcdTenants(token, program.href, systemOrgId, sysOrgDEK);
     console.log('Newly mapped tenants', mappedTenants);
 
     if (extensionId) {

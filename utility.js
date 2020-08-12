@@ -38,7 +38,7 @@ async function getOrgMetadata(vcdHref, vcdApiToken, orgId) {
  */
 async function saveMetadata(vcdHref, vcdApiToken, orgId, metaName, metaValue) {
     try {
-        console.debug(`Saving endpoint data for org '${orgId}'...`);
+        console.debug(`Saving metadata for org '${orgId}', metaName '${metaName}'...`);
         const data = `<Metadata xmlns="http://www.vmware.com/vcloud/v1.5"
           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
           type="application/vnd.vmware.vcloud.metadata+xml">
@@ -248,7 +248,7 @@ module.exports = {
      * @param {string} password 
      * @return {Promise<sting>}
      */
-    fetchOrgKEK: async function (vcdHref, vcdApiToken, orgId, encryptionPassword) {
+    fetchOrgDEK: async function (vcdHref, vcdApiToken, orgId, encryptionPassword) {
         const metaData = await getOrgMetadata(vcdHref, vcdApiToken, orgId);
         let metaValue;
         metaData.metadataEntry.forEach(metadataEntry => {
@@ -262,6 +262,45 @@ module.exports = {
         });
 
         return metaValue;
+    },
+
+    /**
+     * Returns the settings metadata information.
+     * @param {string} vcdHref 
+     * @param {string} vcdApiToken 
+     * @param {string} orgId 
+     * @param {string} decryptionPassword 
+     */
+    fetchSettingsMetadata: async function (vcdHref, vcdApiToken, orgId, decryptionPassword) {
+        const metaData = await getOrgMetadata(vcdHref, vcdApiToken, orgId);
+        let metaValue;
+        metaData.metadataEntry.forEach(metadataEntry => {
+            if (metadataEntry.key === "COHESITY_SETTINGS") {
+                // Decrypt the key
+                metaValue = encryptor.decrypt(
+                    metadataEntry.typedValue['value'],
+                    decryptionPassword
+                );
+            }
+        });
+
+        return metaValue;
+    },
+
+    /**
+     * Returns the settings metadata information.
+     * @param {string} vcdHref 
+     * @param {string} vcdApiToken 
+     * @param {string} orgId 
+     * @param {string} dek - Data encryption key
+     * @param {string} settingsObj 
+     */
+    saveSettingsMetadata: async function (vcdHref, vcdApiToken, orgId, dek, settingsObj) {
+        const metaName = `COHESITY_SETTINGS`;
+        // Encrypted payload.
+        const metaValue = encryptor.encrypt(settingsObj, dek);
+
+        await saveMetadata(vcdHref, vcdApiToken, orgId, metaName, metaValue);
     },
 
 
@@ -374,10 +413,10 @@ module.exports = {
     },
 
     /**
-     * Generates a random Key-encryption-key
+     * Generates a random DATA-encryption-key
      * @param {string} encPassword 
      */
-    generateRandomKEK: function (encPassword) {
+    generateRandomDEK: function (encPassword) {
         return encryptor.randomKey();
     },
 
