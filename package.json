@@ -1,7 +1,7 @@
 {
-  "name": "cohesity-vcd-scripts",
-  "version": "2.0.0",
-  "description": "Various node based scripts to automate VCD extension actions.",
+  "name": "cs-vcd-mapping",
+  "version": "2.2.0",
+  "description": "Node based script to automate cohesity vCD extension actions.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
