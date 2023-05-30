@@ -3,7 +3,7 @@ const program = require('commander');
 const mapper = require('./../lib/mapper');
 
 program
-    .version('2.2.0')
+    .version('2.2.1')
     .requiredOption('-h, --href <href>', 'vcd endpoint href')
     .requiredOption('-u, --vcd-username <vcdUsername>', 'vcd provider username')
     .requiredOption('-p, --vcd-password <vcdPassword>', 'vcd provider password')
@@ -50,7 +50,7 @@ if (program.action === 'add') {
     }).then(data => {
         console.log(data);
     }).catch(err => {
-        console.error('Failed to add tenant mapping information', err);
+        console.error('Failed to list tenant mapping information', err);
     })
 } else {
     // Remove the tenant mapping
