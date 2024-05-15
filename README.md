@@ -75,4 +75,4 @@ mapper.listMappingDetails({
 Request support for encryption password.
 
 ## Feedback
-We love to hear from you. Please send your feedback and suggestions to cohesity-api-sdks@cohesity.com
+We love to hear from you. Please send your feedback and suggestions to *support@cohesity.com*
